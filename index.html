@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tukylab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@700&family=Montserrat:wght@400;600;700&family=Caveat:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --amarillo: #F5E660;
+    --tinta: #15140F;
+    --hueso: #FFFDF5;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--hueso);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    color: var(--tinta);
+    padding: 32px 24px;
+    text-align: center;
+  }
+
+  .card {
+    max-width: 420px;
+    width: 100%;
+  }
+
+  .logo {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 18px;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  .logo img { width: 100%; height: 100%; display: block; }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
+  .tagline {
+    font-family: 'Caveat', cursive;
+    font-size: 26px;
+    color: var(--tinta);
+    margin: 0 0 36px;
+  }
+
+  .eyebrow {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    color: var(--tinta);
+    opacity: 0.55;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 700;
+    font-size: 34px;
+    line-height: 1.2;
+    margin: 0 0 10px;
+    letter-spacing: -0.02em;
+  }
+
+  .highlight {
+    background: var(--amarillo);
+    padding: 2px 10px;
+    border-radius: 6px;
+  }
+
+  .subtext {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--tinta);
+    opacity: 0.75;
+    margin: 0 0 32px;
+  }
+
+  .btn {
+    display: inline-block;
+    width: 100%;
+    background: var(--amarillo);
+    color: var(--tinta);
+    text-decoration: none;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 16px 24px;
+    border-radius: 100px;
+    border: 2px solid var(--tinta);
+    box-shadow: 4px 4px 0px var(--tinta);
+    transition: transform 0.08s ease;
+    cursor: pointer;
+  }
+
+  .btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px var(--tinta);
+  }
+
+  .reminder {
+    margin-top: 28px;
+    font-size: 14px;
+    line-height: 1.5;
+    opacity: 0.7;
+  }
+
+  .reminder b { opacity: 1; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <img src="data:image/png;base64,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" alt="tukylab">
+    </div>
+
+    <p class="tagline">tu vibe, tu estilo</p>
+
+    <p class="eyebrow">tukylab</p>
+    <h1>Mostrale a todas<br><span class="highlight">tu vibe</span> ✨</h1>
+    <p class="subtext">Si no pasa nada en unos segundos, tocá el botón.</p>
+
+    <a class="btn" id="fallback-btn" href="https://www.instagram.com/tukylab" target="_blank" rel="noopener">
+      Abrir cámara de Instagram
+    </a>
+
+    <p class="reminder">Cuando subas tu historia, <b>etiquetanos @tukylab</b> 💛 nos encanta ver cómo la combinás.</p>
+  </div>
+
+<script>
+  function isAndroid() {
+    return /android/i.test(navigator.userAgent);
+  }
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  var iosLink = "instagram://story-camera";
+  var androidLink = "intent://story-camera#Intent;package=com.instagram.android;scheme=instagram;end";
+  var fallback = document.getElementById('fallback-btn');
+
+  function tryOpenInstagram() {
+    if (isAndroid()) {
+      window.location.href = androidLink;
+    } else if (isIOS()) {
+      window.location.href = iosLink;
+    }
+  }
+
+  // Intento automático apenas carga la página
+  window.addEventListener('load', tryOpenInstagram);
+
+  // El botón también sirve para reintentar manualmente (algunos navegadores
+  // bloquean el salto automático a esquemas personalizados sin un toque directo)
+  fallback.addEventListener('click', function (e) {
+    if (isAndroid() || isIOS()) {
+      e.preventDefault();
+      tryOpenInstagram();
+      // si en 900ms seguimos acá, mandamos al perfil como respaldo final
+      setTimeout(function () {
+        window.location.href = "https://www.instagram.com/tukylab";
+      }, 900);
+    }
+    // en desktop, el href normal del botón ya lleva al perfil
+  });
+</script>
+</body>
+</html>
