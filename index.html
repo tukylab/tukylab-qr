@@ -149,30 +149,60 @@
   }
 
   var iosLink = "instagram://story-camera";
-  var androidLink = "intent://story-camera#Intent;package=com.instagram.android;scheme=instagram;end";
+  var androidSchemeLink = "instagram://story-camera";
+  var androidIntentLink = "intent://story-camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=" + encodeURIComponent("https://www.instagram.com/tukylab") + ";end";
+  var profileUrl = "https://www.instagram.com/tukylab";
   var fallback = document.getElementById('fallback-btn');
 
+  // Si la app abre, el navegador queda oculto/pausado. Usamos esto para saber
+  // si un intento falló en silencio y hay que probar el siguiente.
+  var pageStillVisible = true;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) pageStillVisible = false;
+  });
+  window.addEventListener('pagehide', function () { pageStillVisible = false; });
+
   function tryOpenInstagram() {
-    if (isAndroid()) {
-      window.location.href = androidLink;
-    } else if (isIOS()) {
+    pageStillVisible = true;
+
+    if (isIOS()) {
       window.location.href = iosLink;
+      return;
+    }
+
+    if (isAndroid()) {
+      // Paso 1: esquema simple. Funciona en la mayoría de navegadores Android
+      // (Samsung Internet, Firefox, WebViews de otras apps, etc.)
+      window.location.href = androidSchemeLink;
+
+      // Paso 2: si medio segundo después seguimos en la página, probamos el
+      // formato intent:// que es el que exige específicamente Chrome. Este
+      // ya incluye una URL de respaldo, así que si Instagram no está
+      // instalado, Chrome cae solo en el perfil sin quedarse en blanco.
+      setTimeout(function () {
+        if (pageStillVisible) {
+          window.location.href = androidIntentLink;
+        }
+      }, 500);
     }
   }
 
-  // Intento automático apenas carga la página
+  // Intento automático apenas carga la página.
+  // Nota: los navegadores móviles suelen bloquear este salto automático por
+  // seguridad (requieren un toque directo de la persona), así que esto es
+  // "mejor esfuerzo" — el botón de abajo es el que garantiza que funcione.
   window.addEventListener('load', tryOpenInstagram);
 
-  // El botón también sirve para reintentar manualmente (algunos navegadores
-  // bloquean el salto automático a esquemas personalizados sin un toque directo)
   fallback.addEventListener('click', function (e) {
     if (isAndroid() || isIOS()) {
       e.preventDefault();
       tryOpenInstagram();
-      // si en 900ms seguimos acá, mandamos al perfil como respaldo final
+      // si después de ambos intentos seguimos acá, vamos al perfil como respaldo final
       setTimeout(function () {
-        window.location.href = "https://www.instagram.com/tukylab";
-      }, 900);
+        if (pageStillVisible) {
+          window.location.href = profileUrl;
+        }
+      }, 1600);
     }
     // en desktop, el href normal del botón ya lleva al perfil
   });
