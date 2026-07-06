@@ -2,7 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#FFFDF5">
 <title>tukylab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,6 +18,8 @@
 
   * { box-sizing: border-box; }
 
+  html { color-scheme: light; }
+
   body {
     margin: 0;
     min-height: 100vh;
@@ -23,9 +27,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Montserrat', -apple-system, sans-serif;
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
     color: var(--tinta);
-    padding: 32px 24px;
+    padding: max(32px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+             max(32px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
     text-align: center;
   }
 
@@ -48,6 +53,10 @@
     50% { transform: scale(1.08); }
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .logo { animation: none; }
+  }
+
   .tagline {
     font-family: 'Caveat', cursive;
     font-size: 26px;
@@ -67,7 +76,7 @@
   }
 
   h1 {
-    font-family: 'Quicksand', sans-serif;
+    font-family: 'Quicksand', 'Montserrat', sans-serif;
     font-weight: 700;
     font-size: 34px;
     line-height: 1.2;
@@ -87,6 +96,7 @@
     color: var(--tinta);
     opacity: 0.75;
     margin: 0 0 32px;
+    min-height: 1.5em;
   }
 
   .btn {
@@ -104,11 +114,17 @@
     box-shadow: 4px 4px 0px var(--tinta);
     transition: transform 0.08s ease;
     cursor: pointer;
+    min-height: 44px;
   }
 
   .btn:active {
     transform: translate(2px, 2px);
     box-shadow: 2px 2px 0px var(--tinta);
+  }
+
+  .btn:focus-visible {
+    outline: 3px solid var(--tinta);
+    outline-offset: 3px;
   }
 
   .reminder {
@@ -119,6 +135,17 @@
   }
 
   .reminder b { opacity: 1; }
+
+  /* Visualmente oculto pero disponible para lectores de pantalla */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
 </style>
 </head>
 <body>
@@ -131,81 +158,211 @@
 
     <p class="eyebrow">tukylab</p>
     <h1>Mostrale a todas<br><span class="highlight">tu vibe</span> ✨</h1>
-    <p class="subtext">Si no pasa nada en unos segundos, tocá el botón.</p>
+    <p class="subtext" id="subtext" data-default="Si no pasa nada en unos segundos, tocá el botón.">Si no pasa nada en unos segundos, tocá el botón.</p>
 
     <a class="btn" id="fallback-btn" href="https://www.instagram.com/tukylab" target="_blank" rel="noopener">
       Abrir cámara de Instagram
     </a>
 
-    <p class="reminder">Cuando subas tu historia, <b>etiquetanos @tukylab</b> 💛 nos encanta ver cómo la combinás.</p>
+    <p class="reminder">Cuando subas tu historia, <b>etiquetanos @tukylab</b> 💛 nos encanta ver cómo los combinás.</p>
+
+    <p class="sr-only" id="status-live" role="status" aria-live="polite"></p>
   </div>
 
 <script>
-  function isAndroid() {
-    return /android/i.test(navigator.userAgent);
-  }
-  function isIOS() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+(function () {
+  'use strict';
+
+  var UA = navigator.userAgent || '';
+
+  // ---------- Detección de plataforma ----------
+
+  function isIOSDevice() {
+    var classic = /iPad|iPhone|iPod/.test(UA) && !window.MSStream;
+    // iPadOS 13+ se identifica como "MacIntel" pero tiene soporte táctil multi-touch
+    var iPadOS13Up = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return classic || iPadOS13Up;
   }
 
-  var iosLink = "instagram://story-camera";
-  var androidSchemeLink = "instagram://story-camera";
-  var androidIntentLink = "intent://story-camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=" + encodeURIComponent("https://www.instagram.com/tukylab") + ";end";
-  var profileUrl = "https://www.instagram.com/tukylab";
-  var fallback = document.getElementById('fallback-btn');
+  function isHarmonyOS() {
+    // HarmonyOS NEXT (sin capa Android) suele exponer alguno de estos tokens.
+    // HarmonyOS 2-4 (basado en AOSP) generalmente sigue reportando "Android"
+    // para no romper la compatibilidad web, así que también cae en isAndroidLike().
+    return /HarmonyOS|OpenHarmony|HuaweiBrowser|HMSCore/i.test(UA);
+  }
 
-  // Si la app abre, el navegador queda oculto/pausado. Usamos esto para saber
-  // si un intento falló en silencio y hay que probar el siguiente.
-  var pageStillVisible = true;
+  function isAndroidLike() {
+    return /Android/i.test(UA) || isHarmonyOS();
+  }
+
+  function isMobile() {
+    return isIOSDevice() || isAndroidLike();
+  }
+
+  // Motor Chromium real: intent:// solo lo entienden navegadores basados en
+  // Chromium (Chrome, Samsung Internet, Huawei Browser, Opera, Edge Android).
+  // Firefox Android (Gecko) NO lo entiende y puede mostrar un error si se lo mandamos.
+  function isChromiumEngine() {
+    var chromiumTokens = /Chrome\/|SamsungBrowser\/|HuaweiBrowser\/|OPR\/|EdgA\//i.test(UA);
+    var isFirefox = /Firefox|FxiOS/i.test(UA);
+    return chromiumTokens && !isFirefox;
+  }
+
+  // WebViews embebidos conocidos por bloquear o restringir esquemas personalizados.
+  function isInAppBrowser() {
+    return /FBAN|FBAV|Instagram|Line\/|MicroMessenger|WhatsApp|TikTok/i.test(UA);
+  }
+
+  // ---------- Links ----------
+
+  var LINKS = {
+    iosScheme: 'instagram://story-camera',
+    androidScheme: 'instagram://story-camera',
+    androidIntent: 'intent://story-camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=' +
+                   encodeURIComponent('https://www.instagram.com/tukylab') + ';end',
+    profile: 'https://www.instagram.com/tukylab'
+  };
+
+  // ---------- Estado compartido ----------
+
+  var fallbackBtn = document.getElementById('fallback-btn');
+  var subtextEl   = document.getElementById('subtext');
+  var statusEl    = document.getElementById('status-live');
+
+  var appLikelyOpened = false; // true = probablemente Instagram abrió (o el usuario se fue)
+  var isProcessing = false;    // evita que taps repetidos apilen timers
+  var pendingTimers = [];
+
+  function clearPendingTimers() {
+    for (var i = 0; i < pendingTimers.length; i++) clearTimeout(pendingTimers[i]);
+    pendingTimers = [];
+  }
+
+  function markAppOpened() {
+    appLikelyOpened = true;
+    clearPendingTimers();
+    isProcessing = false;
+  }
+
+  // Señales reales de que la app se abrió (o de que el usuario navegó fuera).
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) pageStillVisible = false;
+    if (document.hidden) {
+      markAppOpened();
+    } else {
+      // El usuario volvió al navegador: reset limpio para que un próximo tap funcione bien.
+      appLikelyOpened = false;
+      isProcessing = false;
+    }
   });
-  window.addEventListener('pagehide', function () { pageStillVisible = false; });
+  window.addEventListener('pagehide', markAppOpened);
 
-  function tryOpenInstagram() {
-    pageStillVisible = true;
+  function safeNavigate(url) {
+    try {
+      window.location.href = url;
+    } catch (err) {
+      // Algunos navegadores lanzan un error al no reconocer un esquema.
+      // Lo silenciamos a propósito: el siguiente paso del flujo se hace cargo.
+    }
+  }
 
-    if (isIOS()) {
-      window.location.href = iosLink;
+  function setStatus(msg) {
+    if (statusEl) statusEl.textContent = msg;
+  }
+
+  function setSubtext(msg) {
+    if (subtextEl) subtextEl.textContent = msg;
+  }
+
+  // ---------- Ajustes de copy según contexto (sin tocar diseño) ----------
+
+  if (isInAppBrowser()) {
+    setSubtext('Para continuar, abrí este link en Safari o Chrome desde el menú de tu navegador.');
+  } else if (typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+    setSubtext('Parece que no tenés conexión a internet en este momento.');
+  }
+
+  window.addEventListener('online', function () {
+    if (subtextEl && subtextEl.textContent.indexOf('conexión') !== -1) {
+      setSubtext(subtextEl.getAttribute('data-default'));
+    }
+  });
+
+  // ---------- Intento automático (best-effort, sin forzar fallback a perfil) ----------
+  //
+  // Muchos navegadores móviles bloquean la navegación a esquemas personalizados
+  // si no viene de un gesto directo del usuario. Este intento es "gratis": si
+  // funciona, mejor; si no, el botón manual (más abajo) es el flujo garantizado.
+  // A propósito NO se redirige automáticamente al perfil desde acá: forzar una
+  // navegación sin que la persona haya tocado nada sería un fallback prematuro.
+
+  function attemptAutoOpen() {
+    if (!isMobile() || isInAppBrowser()) return;
+
+    appLikelyOpened = false;
+    setStatus('Abriendo la cámara de Instagram…');
+
+    if (isIOSDevice()) {
+      safeNavigate(LINKS.iosScheme);
       return;
     }
 
-    if (isAndroid()) {
-      // Paso 1: esquema simple. Funciona en la mayoría de navegadores Android
-      // (Samsung Internet, Firefox, WebViews de otras apps, etc.)
-      window.location.href = androidSchemeLink;
-
-      // Paso 2: si medio segundo después seguimos en la página, probamos el
-      // formato intent:// que es el que exige específicamente Chrome. Este
-      // ya incluye una URL de respaldo, así que si Instagram no está
-      // instalado, Chrome cae solo en el perfil sin quedarse en blanco.
-      setTimeout(function () {
-        if (pageStillVisible) {
-          window.location.href = androidIntentLink;
-        }
-      }, 500);
-    }
+    safeNavigate(LINKS.androidScheme);
+    var t = setTimeout(function () {
+      if (!appLikelyOpened && isChromiumEngine()) {
+        safeNavigate(LINKS.androidIntent);
+      }
+    }, 500);
+    pendingTimers.push(t);
   }
 
-  // Intento automático apenas carga la página.
-  // Nota: los navegadores móviles suelen bloquear este salto automático por
-  // seguridad (requieren un toque directo de la persona), así que esto es
-  // "mejor esfuerzo" — el botón de abajo es el que garantiza que funcione.
-  window.addEventListener('load', tryOpenInstagram);
+  if (document.readyState === 'complete') {
+    attemptAutoOpen();
+  } else {
+    window.addEventListener('load', attemptAutoOpen);
+  }
 
-  fallback.addEventListener('click', function (e) {
-    if (isAndroid() || isIOS()) {
-      e.preventDefault();
-      tryOpenInstagram();
-      // si después de ambos intentos seguimos acá, vamos al perfil como respaldo final
-      setTimeout(function () {
-        if (pageStillVisible) {
-          window.location.href = profileUrl;
-        }
-      }, 1600);
+  // ---------- Flujo manual (el más confiable — arma el fallback final) ----------
+
+  function attemptManualOpen() {
+    if (isProcessing) return; // ignora taps repetidos mientras hay un intento en curso
+    isProcessing = true;
+    appLikelyOpened = false;
+    clearPendingTimers();
+    setStatus('Abriendo la cámara de Instagram…');
+
+    function goToProfileIfStillHere() {
+      if (!appLikelyOpened) {
+        setStatus('No pudimos abrir Instagram automáticamente. Te llevamos a tu perfil.');
+        safeNavigate(LINKS.profile);
+      }
+      isProcessing = false;
     }
-    // en desktop, el href normal del botón ya lleva al perfil
-  });
+
+    if (isIOSDevice()) {
+      safeNavigate(LINKS.iosScheme);
+      pendingTimers.push(setTimeout(goToProfileIfStillHere, 1500));
+      return;
+    }
+
+    // Android / HarmonyOS: esquema simple -> (si Chromium) intent -> perfil
+    safeNavigate(LINKS.androidScheme);
+    pendingTimers.push(setTimeout(function () {
+      if (appLikelyOpened) { isProcessing = false; return; }
+      if (isChromiumEngine()) {
+        safeNavigate(LINKS.androidIntent);
+      }
+      pendingTimers.push(setTimeout(goToProfileIfStillHere, 1100));
+    }, 500));
+  }
+
+  if (fallbackBtn) {
+    fallbackBtn.addEventListener('click', function (e) {
+      if (!isMobile()) return; // desktop: el href normal ya lleva al perfil, sin deep links
+      e.preventDefault();
+      attemptManualOpen();
+    });
+  }
+})();
 </script>
 </body>
 </html>
