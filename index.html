@@ -215,13 +215,26 @@
 
   // ---------- Links ----------
 
+  var PROFILE_URL = 'https://www.instagram.com/tukylab';
+
   var LINKS = {
     iosScheme: 'instagram://story-camera',
-    androidScheme: 'instagram://story-camera',
-    androidIntent: 'intent://story-camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=' +
-                   encodeURIComponent('https://www.instagram.com/tukylab') + ';end',
-    profile: 'https://www.instagram.com/tukylab'
+    profile: PROFILE_URL
   };
+
+  // Ninguno de estos paths es una API oficial de Instagram: son esquemas
+  // reverse-engineered que la app Android puede o no seguir honrando según
+  // la versión instalada. Por eso probamos varias variantes conocidas en
+  // cadena, de la más específica a la más genérica, en vez de apostar a una sola.
+  function androidCandidates() {
+    var fallback = encodeURIComponent(PROFILE_URL);
+    return [
+      'instagram://story-camera',
+      'intent://story-camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=' + fallback + ';end',
+      'instagram://camera',
+      'intent://camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=' + fallback + ';end'
+    ];
+  }
 
   // ---------- Estado compartido ----------
 
@@ -295,6 +308,33 @@
   // A propósito NO se redirige automáticamente al perfil desde acá: forzar una
   // navegación sin que la persona haya tocado nada sería un fallback prematuro.
 
+  // Prueba una lista de URLs en cadena: intenta la primera, espera un poco,
+  // y si seguimos en la página (no se abrió nada) prueba la siguiente.
+  // Se detiene apenas detecta que la app tomó el control (appLikelyOpened).
+  function tryCandidateChain(candidates, index, onExhausted) {
+    if (index >= candidates.length) {
+      onExhausted();
+      return;
+    }
+    var url = candidates[index];
+    var isIntentUrl = url.indexOf('intent://') === 0;
+
+    // El formato intent:// solo lo entienden navegadores Chromium; en otros
+    // (Firefox Android) lo saltamos directo para no arriesgar una página de error.
+    if (isIntentUrl && !isChromiumEngine()) {
+      tryCandidateChain(candidates, index + 1, onExhausted);
+      return;
+    }
+
+    safeNavigate(url);
+    var t = setTimeout(function () {
+      if (!appLikelyOpened) {
+        tryCandidateChain(candidates, index + 1, onExhausted);
+      }
+    }, 450);
+    pendingTimers.push(t);
+  }
+
   function attemptAutoOpen() {
     if (!isMobile() || isInAppBrowser()) return;
 
@@ -306,13 +346,8 @@
       return;
     }
 
-    safeNavigate(LINKS.androidScheme);
-    var t = setTimeout(function () {
-      if (!appLikelyOpened && isChromiumEngine()) {
-        safeNavigate(LINKS.androidIntent);
-      }
-    }, 500);
-    pendingTimers.push(t);
+    // Android/HarmonyOS: best-effort, sin forzar fallback a perfil desde el auto-intento
+    tryCandidateChain(androidCandidates(), 0, function () { /* sin acción: es best-effort */ });
   }
 
   if (document.readyState === 'complete') {
@@ -344,15 +379,9 @@
       return;
     }
 
-    // Android / HarmonyOS: esquema simple -> (si Chromium) intent -> perfil
-    safeNavigate(LINKS.androidScheme);
-    pendingTimers.push(setTimeout(function () {
-      if (appLikelyOpened) { isProcessing = false; return; }
-      if (isChromiumEngine()) {
-        safeNavigate(LINKS.androidIntent);
-      }
-      pendingTimers.push(setTimeout(goToProfileIfStillHere, 1100));
-    }, 500));
+    // Android / HarmonyOS: recorre todas las variantes conocidas y, si ninguna
+    // funcionó, recién ahí cae al perfil. Este es el flujo garantizado.
+    tryCandidateChain(androidCandidates(), 0, goToProfileIfStillHere);
   }
 
   if (fallbackBtn) {
